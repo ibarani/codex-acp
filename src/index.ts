@@ -97,14 +97,17 @@ function startAcpServer() {
     });
 
     process.stdin.on("close", () => {
-        codexConnection.process.stdin.end();
-        // Kill the codex process if it doesn't exit naturally
+        const child = codexConnection.process;
+        if (child.exitCode !== null || child.signalCode !== null) return;
+
+        child.stdin.end();
+        // A sent signal is not an exit; only a live child needs the fallback.
         setTimeout(() => {
-            if (!codexConnection.process.killed) {
+            if (child.exitCode === null && child.signalCode === null) {
                 logger.log("Codex still running 2s after stdin closed; terminating process");
-                codexConnection.process.kill();
+                child.kill();
             }
-        }, 2000);
+        }, 2000).unref();
     });
 
     const acpJsonStream = createJsonStream(process.stdin, process.stdout);

@@ -25,6 +25,13 @@ the same override. Retire this backport after a current upstream adapter passes
 the native runtime, authentication, tool, resume and capture acceptance boundaries.
 The maintenance branch runs the same CI and PR-title checks as `main`.
 
+Closing the ACP client's input ends the native child's input. If the child is
+still running after two seconds, the adapter requests termination with SIGTERM.
+Exit status or a terminating signal suppresses that fallback; a prior signal
+request alone does not establish exit. The timer cannot keep an otherwise idle
+adapter alive. This preserves the existing grace period and signal policy; it
+does not add a SIGKILL escalation for a child that ignores SIGTERM.
+
 ### Quick start
 
 #### Develop on Windows?
