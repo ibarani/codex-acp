@@ -4,7 +4,7 @@ name: Conventional PRs
 # ends up in the history release notes are generated from.
 on:
   pull_request:
-    branches: [main]
+    branches: [main, backport/codex-acp-1.4]
     # labeled/unlabeled so validation re-runs when `dependencies` is applied.
     types: [opened, reopened, edited, synchronize, labeled, unlabeled]
 

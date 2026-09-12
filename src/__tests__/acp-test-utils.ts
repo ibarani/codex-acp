@@ -2,7 +2,7 @@ import * as acp from "@agentclientprotocol/sdk";
 import type {CreateElicitationResponse, McpServerStdio, RequestPermissionResponse} from "@agentclientprotocol/sdk";
 import {CodexAcpClient} from '../CodexAcpClient';
 import {CodexAppServerClient, type CodexConnectionEvent} from '../CodexAppServerClient';
-import {startCodexConnection} from "../CodexJsonRpcConnection";
+import {type CodexConnection, startCodexConnection} from "../CodexJsonRpcConnection";
 import {CodexAcpServer, type SessionState} from "../CodexAcpServer";
 import type {AcpClientConnection} from "../ACPSessionConnection";
 import type {ServerNotification} from "../app-server";
@@ -12,7 +12,7 @@ import fs from "node:fs";
 import os from "node:os";
 import {AgentMode} from "../AgentMode";
 import {DEFAULT_COLLABORATION_MODE} from "../CollaborationModeConfig";
-import {expect, vi} from "vitest";
+import {expect, onTestFinished, vi} from "vitest";
 import type {Model, ReasoningEffortOption} from "../app-server/v2";
 
 export type MethodCallEvent = { method: string; args: any[] };
@@ -180,14 +180,61 @@ export function createTestFixture(): TestFixture {
         ...process.env,
         CODEX_HOME: codexHome,
     });
-    codexConnection.process.on("exit", () => {
-        removeDirectoryWithRetry(codexHome);
-    });
+    registerCodexFixtureCleanup(codexConnection, [codexHome]);
 
     return createBaseTestFixture({
         connection: codexConnection.connection,
         getExitCode: () => codexConnection.process.exitCode
     });
+}
+
+/** Register owned process teardown before exposing a real fixture to its test. */
+export function registerCodexFixtureCleanup(codexConnection: CodexConnection, directories: readonly string[]): void {
+    const child = codexConnection.process;
+    let processError: string | null = null;
+    child.on("error", () => { processError ??= "Codex fixture process failed"; });
+    child.stdin.on("error", () => { processError ??= "Codex fixture stdin failed"; });
+    child.stdout.on("error", () => { processError ??= "Codex fixture stdout failed"; });
+    child.stderr.on("error", () => { processError ??= "Codex fixture stderr failed"; });
+    const closed = new Promise<{code: number | null; signal: NodeJS.Signals | null}>(resolve => {
+        child.once("close", (code, signal) => resolve({code, signal}));
+    });
+    onTestFinished(async () => {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        let didClose = false;
+        let terminationRequested = false;
+        try {
+            codexConnection.connection.dispose();
+            if (!child.stdin.destroyed) child.stdin.end();
+            // The bundled app-server does not reliably stop on EOF after initialization.
+            // Its launcher forwards SIGTERM to the retained native child.
+            if (child.exitCode === null && child.signalCode === null) {
+                terminationRequested = child.kill("SIGTERM");
+            }
+            const outcome = await Promise.race([
+                closed,
+                new Promise<never>((_, reject) => {
+                    timer = setTimeout(() => reject(new Error("Codex fixture did not close during teardown")), 5000);
+                }),
+            ]);
+            didClose = true;
+            if (processError !== null) throw new Error(processError);
+            const exitedSuccessfully = outcome.code === 0 && outcome.signal === null;
+            const stoppedByFixture = terminationRequested && (outcome.signal === "SIGTERM"
+                || (outcome.signal === null && outcome.code === 143));
+            if (!exitedSuccessfully && !stoppedByFixture) {
+                throw new Error("Codex fixture exited unexpectedly during teardown");
+            }
+        } finally {
+            if (timer !== undefined) clearTimeout(timer);
+            // A timed-out child may still write here; its supervisor owns recovery.
+            if (didClose) {
+                for (const directory of directories) {
+                    fs.rmSync(directory, {recursive: true, force: true, maxRetries: 4, retryDelay: 20});
+                }
+            }
+        }
+    }, 7000);
 }
 
 function createTestCodexHome(): string {

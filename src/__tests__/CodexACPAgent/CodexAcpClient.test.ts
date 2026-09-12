@@ -22,7 +22,7 @@ describe('ACP server test', { timeout: 40_000 }, () => {
 
     let fixture: TestFixture;
     beforeEach(() => {
-        fixture = createTestFixture();
+        fixture = createCodexMockTestFixture();
         vi.clearAllMocks();
     });
 
@@ -1367,6 +1367,7 @@ describe('ACP server test', { timeout: 40_000 }, () => {
     });
 
     it('should fail on wrong sessionId', async () => {
+        const fixture = createTestFixture();
         const sessionId = "not-existing-session";
 
         await fixture.getCodexAcpAgent().initialize({protocolVersion: 1});
@@ -3079,6 +3080,7 @@ describe('ACP server test', { timeout: 40_000 }, () => {
     });
 
     it('handles logout command', async () => {
+        const fixture = createTestFixture();
         const codexAcpAgent = fixture.getCodexAcpAgent();
         await codexAcpAgent.initialize({protocolVersion: 1});
 
@@ -3270,6 +3272,7 @@ describe('ACP server test', { timeout: 40_000 }, () => {
     });
 
     it('handles skills command', async () => {
+        const fixture = createTestFixture();
         const codexAcpAgent = fixture.getCodexAcpAgent();
         await codexAcpAgent.initialize({protocolVersion: 1});
 
@@ -3295,6 +3298,7 @@ describe('ACP server test', { timeout: 40_000 }, () => {
     });
 
     it('handles mcp command', async () => {
+        const fixture = createTestFixture();
         const codexAcpAgent = fixture.getCodexAcpAgent();
         await codexAcpAgent.initialize({protocolVersion: 1});
 
@@ -3330,6 +3334,7 @@ describe('ACP server test', { timeout: 40_000 }, () => {
     });
 
     it('handles builtin slash command locally when prompt has attachments', async () => {
+        const fixture = createTestFixture();
         const codexAcpAgent = fixture.getCodexAcpAgent();
         await codexAcpAgent.initialize({protocolVersion: 1});
 
@@ -3511,14 +3516,24 @@ describe('ACP server test', { timeout: 40_000 }, () => {
         expect(turnStartSpy).toHaveBeenCalledWith(expect.objectContaining({ summary: "none" }));
     });
 
-    it ('should enable reasoning.summary by default', async () => {
+    it ('should leave reasoning.summary to the native configuration for ChatGPT', async () => {
         const { mockFixture, turnStartSpy } = setupPromptFixture({
             account: { type: "chatgpt", email: "test@example.com", planType: "pro" },
         });
 
         await mockFixture.getCodexAcpAgent().prompt({ sessionId: "id", prompt: [{ type: "text", text: "test" }] });
 
-        expect(turnStartSpy).toHaveBeenCalledWith(expect.objectContaining({ summary: "auto" }));
+        expect(turnStartSpy).toHaveBeenCalledTimes(1);
+        expect(JSON.parse(JSON.stringify(turnStartSpy.mock.calls[0]![0]))).not.toHaveProperty("summary");
+    });
+
+    it ('should leave reasoning.summary to the native configuration for provider-command authentication', async () => {
+        const { mockFixture, turnStartSpy } = setupPromptFixture({ account: null });
+
+        await mockFixture.getCodexAcpAgent().prompt({ sessionId: "id", prompt: [{ type: "text", text: "test" }] });
+
+        expect(turnStartSpy).toHaveBeenCalledTimes(1);
+        expect(JSON.parse(JSON.stringify(turnStartSpy.mock.calls[0]![0]))).not.toHaveProperty("summary");
     });
 
     it ('should disable reasoning.summary when model lacks reasoning', async () => {
@@ -3532,7 +3547,7 @@ describe('ACP server test', { timeout: 40_000 }, () => {
         expect(turnStartSpy).toHaveBeenCalledWith(expect.objectContaining({ summary: "none" }));
     });
 
-    it ('should enable reasoning.summary when model supports reasoning', async () => {
+    it ('should leave reasoning.summary to the native configuration when model supports reasoning', async () => {
         const { mockFixture, turnStartSpy } = setupPromptFixture({
             account: { type: "chatgpt", email: "test@example.com", planType: "pro" },
             supportedReasoningEfforts: [
@@ -3543,7 +3558,8 @@ describe('ACP server test', { timeout: 40_000 }, () => {
 
         await mockFixture.getCodexAcpAgent().prompt({ sessionId: "id", prompt: [{ type: "text", text: "test" }] });
 
-        expect(turnStartSpy).toHaveBeenCalledWith(expect.objectContaining({ summary: "auto" }));
+        expect(turnStartSpy).toHaveBeenCalledTimes(1);
+        expect(JSON.parse(JSON.stringify(turnStartSpy.mock.calls[0]![0]))).not.toHaveProperty("summary");
     });
 
     it ('should reject prompt with images when model does not support image input', async () => {

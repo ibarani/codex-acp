@@ -803,7 +803,8 @@ export class CodexAcpClient {
             input: input,
             approvalPolicy: agentMode.approvalPolicy,
             sandboxPolicy: addAdditionalDirectoriesToSandboxPolicy(agentMode.sandboxPolicy, additionalDirectories),
-            summary: disableSummary ? "none" : "auto",
+            // An omitted override preserves the native profile's summary choice.
+            ...(disableSummary ? {summary: "none" as const} : {}),
             effort: effort,
             model: modelId.model,
             serviceTier: serviceTier,

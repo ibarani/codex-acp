@@ -13,6 +13,18 @@ Set `CODEX_PATH` to run a different Codex binary; versions other than the one sp
 - `NO_BROWSER` - hide browser-based ChatGPT auth when set.
 - `APP_SERVER_LOGS` - directory for adapter logs.
 
+Reasoning summaries follow the native Codex configuration, including an explicit
+`model_reasoning_summary = "none"`. The adapter omits its per-turn summary override
+unless API-key authentication or a model without reasoning requires its existing
+`none` policy. Model and reasoning-effort selections remain separate.
+
+The `backport/codex-acp-1.4` branch retains the installed adapter's 1.4.0
+dependency set while repairing this configuration override. Its unmodified build
+matches the installed bundle byte for byte; the current 1.11.0 source still has
+the same override. Retire this backport after a current upstream adapter passes
+the native runtime, authentication, tool, resume and capture acceptance boundaries.
+The maintenance branch runs the same CI and PR-title checks as `main`.
+
 ### Quick start
 
 #### Develop on Windows?
