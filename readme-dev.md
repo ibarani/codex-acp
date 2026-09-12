@@ -13,6 +13,35 @@ Set `CODEX_PATH` to run a different Codex binary; versions other than the one sp
 - `NO_BROWSER` - hide browser-based ChatGPT auth when set.
 - `APP_SERVER_LOGS` - directory for adapter logs.
 
+Reasoning summaries follow the native Codex configuration, including an explicit
+`model_reasoning_summary = "none"`. The adapter omits its per-turn summary override
+unless API-key authentication or a model without reasoning requires its existing
+`none` policy. Model and reasoning-effort selections remain separate.
+
+The `backport/codex-acp-1.4` branch retains the installed adapter's 1.4.0
+dependency set while repairing this configuration override. Its unmodified build
+matches the installed bundle byte for byte; the current 1.11.0 source still has
+the same override. Retire this backport after a current upstream adapter passes
+the native runtime, authentication, tool, resume and capture acceptance boundaries.
+The maintenance branch runs the same CI and PR-title checks as `main`.
+
+Closing the ACP client's input ends the native child's input. If the child is
+still running after two seconds, the adapter requests termination with SIGTERM.
+Exit status or a terminating signal suppresses that fallback; a prior signal
+request alone does not establish exit. The timer cannot keep an otherwise idle
+adapter alive. This preserves the existing grace period and signal policy; it
+does not add a SIGKILL escalation for a child that ignores SIGTERM.
+
+Session model choices retain the resolved current model/effort even when the
+native catalog omits that model or effort. This applies to new, resumed and loaded
+sessions, including an empty catalog when native session metadata identifies a
+model. Alternative choices and capabilities still come from the native catalog.
+Legacy `session/set_model` refreshes that catalog before accepting changes;
+reselecting the exact current unadvertised choice leaves session state unchanged.
+A valid advertised selection still refreshes its capabilities. Different unknown
+models or unsupported efforts are rejected. This does not supply missing native
+metadata or suppress its fallback warning.
+
 ### Quick start
 
 #### Develop on Windows?

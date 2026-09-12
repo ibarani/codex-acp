@@ -478,9 +478,6 @@ export class CodexAcpClient {
         });
 
         const codexModels = await this.fetchAvailableModels();
-        if (codexModels.length === 0) {
-            throw new Error("Codex did not return any models");
-        }
         const currentModelId = this.createModelId(codexModels, response.model, response.reasoningEffort).toString();
         return {
             sessionId: response.thread.id,
@@ -803,7 +800,8 @@ export class CodexAcpClient {
             input: input,
             approvalPolicy: agentMode.approvalPolicy,
             sandboxPolicy: addAdditionalDirectoriesToSandboxPolicy(agentMode.sandboxPolicy, additionalDirectories),
-            summary: disableSummary ? "none" : "auto",
+            // An omitted override preserves the native profile's summary choice.
+            ...(disableSummary ? {summary: "none" as const} : {}),
             effort: effort,
             model: modelId.model,
             serviceTier: serviceTier,

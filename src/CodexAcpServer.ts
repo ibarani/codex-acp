@@ -51,6 +51,7 @@ import {
     type LegacyLoadSessionResponse,
     type LegacyNewSessionResponse,
     type LegacyResumeSessionResponse,
+    type LegacySessionModel,
     type LegacySessionModelState,
     type LegacySetSessionModelRequest,
     type LegacySetSessionModelResponse,
@@ -997,17 +998,12 @@ export class CodexAcpServer {
 
         const models = await this.codexAcpClient.fetchAvailableModels();
         const model = models.find(m => m.id === requestedModelName);
+        const reasoningEffort = model && findSupportedEffort(model.supportedReasoningEfforts, requestedEffort);
+        // Preserve an existing selection without inventing its catalog capabilities.
+        if (!reasoningEffort && params.modelId === sessionState.currentModelId) return {};
         if (!model) throw new Error(`Unknown model ${params.modelId}`);
-
-        let reasoningEffort: ReasoningEffort;
-        if (requestedEffort) {
-            const matchedEffort = findSupportedEffort(model.supportedReasoningEfforts, requestedEffort);
-            if (!matchedEffort) {
-                throw new Error(`Unsupported reasoning effort ${requestedEffort} for model ${requestedModelName}`);
-            }
-            reasoningEffort = matchedEffort;
-        } else {
-            reasoningEffort = model.defaultReasoningEffort;
+        if (!reasoningEffort) {
+            throw new Error(`Unsupported reasoning effort ${requestedEffort} for model ${requestedModelName}`);
         }
 
         sessionState.availableModels = models;
@@ -1401,7 +1397,7 @@ export class CodexAcpServer {
     }
 
     private createModelState(availableModels: Model[], selectedModelId: string): LegacySessionModelState {
-        const allowedModels = availableModels
+        const allowedModels: LegacySessionModel[] = availableModels
             .flatMap((model) =>
                 model.supportedReasoningEfforts.map((effort) => ({
                     modelId: ModelId.fromComponents(model, effort.reasoningEffort).toString(),
@@ -1410,7 +1406,9 @@ export class CodexAcpServer {
                 }))
             );
         return {
-            availableModels: allowedModels,
+            availableModels: allowedModels.some(model => model.modelId === selectedModelId)
+                ? allowedModels
+                : [{modelId: selectedModelId, name: selectedModelId, description: null}, ...allowedModels],
             currentModelId: selectedModelId,
         }
     }

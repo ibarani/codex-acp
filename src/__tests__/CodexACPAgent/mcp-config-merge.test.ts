@@ -6,7 +6,7 @@ import fs from "node:fs";
 import os from "node:os";
 import type {McpServerStdio} from "@agentclientprotocol/sdk";
 import {startCodexConnection} from "../../CodexJsonRpcConnection";
-import {createBaseTestFixture, removeDirectoryWithRetry, type TestFixture} from "../acp-test-utils";
+import {createBaseTestFixture, registerCodexFixtureCleanup, type TestFixture} from "../acp-test-utils";
 
 describe('MCP config merge across configured MCP servers and ACP request', { timeout: 40_000 }, () => {
 
@@ -37,6 +37,7 @@ url = "https://example.com/mcp"
             ...process.env,
             CODEX_HOME: codexHome,
         });
+        registerCodexFixtureCleanup(codexConnection, [codexHome, projectPath]);
 
         fixture = createBaseTestFixture({
             connection: codexConnection.connection,
@@ -46,8 +47,6 @@ url = "https://example.com/mcp"
 
     afterEach(() => {
         vi.unstubAllEnvs();
-        removeDirectoryWithRetry(codexHome);
-        removeDirectoryWithRetry(projectPath);
     });
 
     it('should preserve the global url-based MCP when ACP passes a command-type MCP with the same name', async () => {
